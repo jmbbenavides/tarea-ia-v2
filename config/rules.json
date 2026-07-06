@@ -1,0 +1,25 @@
+{
+  "valid_statuses": {
+    "SUCCESS": ["completed", "ok", "success"],
+    "FAILED":  ["failed", "error"],
+    "PENDING": ["pending"]
+  },
+  "supported_currencies": [
+    "USD", "EUR", "GBP", "MXN", "COP", "BRL", "ARS", "CLP", "PEN", "GTQ", "HNL", "NIO", "CRC", "DOP", "BOB", "PYG", "UYU", "VES"
+  ],
+  "date_formats": [
+    "%Y-%m-%dT%H:%M:%S",
+    "%Y-%m-%dT%H:%M:%SZ",
+    "%Y-%m-%dT%H:%M:%S.%f",
+    "%Y-%m-%d %H:%M:%S",
+    "%d/%m/%Y %H:%M",
+    "%d-%m-%Y %H:%M:%S",
+    "%m/%d/%Y %H:%M:%S",
+    "%Y/%m/%d %H:%M:%S"
+  ],
+  "amount_rules": {
+    "min_value": 0.0,
+    "max_value": 10000000.0,
+    "cents_threshold": 10000
+  }
+}

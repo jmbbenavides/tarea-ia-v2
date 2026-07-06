@@ -1,0 +1,114 @@
+[
+  {
+    "id": "TXN-001",
+    "amount": 1500.0,
+    "currency": "USD",
+    "timestamp": "2024-01-15T10:30:00Z",
+    "status": "SUCCESS",
+    "source": "FormatA"
+  },
+  {
+    "id": "TXN-002",
+    "amount": 2500.75,
+    "currency": "EUR",
+    "timestamp": "2024-01-16T08:45:00Z",
+    "status": "SUCCESS",
+    "source": "FormatA"
+  },
+  {
+    "id": "TXN-003",
+    "amount": 3500.0,
+    "currency": "USD",
+    "timestamp": "2024-01-15T14:00:00Z",
+    "status": "FAILED",
+    "source": "FormatA"
+  },
+  {
+    "id": "TXN-004",
+    "amount": 1234.56,
+    "currency": "MXN",
+    "timestamp": "2024-02-01T09:00:00Z",
+    "status": "SUCCESS",
+    "source": "FormatA"
+  },
+  {
+    "id": "TXN-005",
+    "amount": 99.99,
+    "currency": "GBP",
+    "timestamp": "2024-02-05T15:20:00Z",
+    "status": "PENDING",
+    "source": "FormatA"
+  },
+  {
+    "id": "TXB-001",
+    "amount": 500.0,
+    "currency": "COP",
+    "timestamp": "2024-03-10T12:00:00Z",
+    "status": "SUCCESS",
+    "source": "FormatB"
+  },
+  {
+    "id": "TXB-002",
+    "amount": 750.0,
+    "currency": "BRL",
+    "timestamp": "2024-03-10T08:30:00Z",
+    "status": "FAILED",
+    "source": "FormatB"
+  },
+  {
+    "id": "TXB-003",
+    "amount": 200.0,
+    "currency": "ARS",
+    "timestamp": "2024-03-11T11:00:00Z",
+    "status": "PENDING",
+    "source": "FormatB"
+  },
+  {
+    "id": "RFC-001",
+    "amount": 950.5,
+    "currency": "USD",
+    "timestamp": "2024-04-01T09:15:00Z",
+    "status": "SUCCESS",
+    "source": "FormatC"
+  },
+  {
+    "id": "RFC-002",
+    "amount": 1800.0,
+    "currency": "EUR",
+    "timestamp": "2024-04-02T10:30:00Z",
+    "status": "SUCCESS",
+    "source": "FormatC"
+  },
+  {
+    "id": "TXD-001",
+    "amount": 2999.0,
+    "currency": "USD",
+    "timestamp": "2024-05-01T14:00:00Z",
+    "status": "SUCCESS",
+    "source": "FormatD"
+  },
+  {
+    "id": "TXD-002",
+    "amount": 500.0,
+    "currency": "MXN",
+    "timestamp": "2024-05-02T16:30:00Z",
+    "status": "FAILED",
+    "source": "FormatD"
+  },
+  {
+    "id": "TXE-001",
+    "amount": 120.0,
+    "currency": "USD",
+    "timestamp": "2024-06-01T08:00:00Z",
+    "status": "SUCCESS",
+    "source": "FormatE"
+  },
+  {
+    "id": "TXE-002",
+    "amount": 875.25,
+    "currency": "GBP",
+    "timestamp": "2024-06-15T10:45:00Z",
+    "status": "SUCCESS",
+    "source": "FormatE"
+  }
+]

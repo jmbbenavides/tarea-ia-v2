@@ -1,0 +1,98 @@
+[
+  {
+    "id": "",
+    "amount": 500.0,
+    "currency": "USD",
+    "timestamp": "2024-07-01T10:00:00Z",
+    "status": "SUCCESS",
+    "source": "FormatA",
+    "is_valid": false,
+    "validation_errors": [
+      "ID vacío o ausente"
+    ]
+  },
+  {
+    "id": "INV-002",
+    "amount": -50.0,
+    "currency": "USD",
+    "timestamp": "2024-07-01T10:00:00Z",
+    "status": "SUCCESS",
+    "source": "FormatA",
+    "is_valid": false,
+    "validation_errors": [
+      "Monto inválido: -50.0 (debe ser > 0)"
+    ]
+  },
+  {
+    "id": "INV-003",
+    "amount": 200.0,
+    "currency": "XYZ",
+    "timestamp": "2024-07-01T10:00:00Z",
+    "status": "SUCCESS",
+    "source": "FormatA",
+    "is_valid": false,
+    "validation_errors": [
+      "Moneda no soportada: 'XYZ'"
+    ]
+  },
+  {
+    "id": "INV-004",
+    "amount": 300.0,
+    "currency": "USD",
+    "timestamp": "99/99/9999 25:99",
+    "status": "SUCCESS",
+    "source": "FormatA",
+    "is_valid": false,
+    "validation_errors": [
+      "Fecha inválida: '99/99/9999 25:99'"
+    ]
+  },
+  {
+    "id": "INV-005",
+    "amount": 450.0,
+    "currency": "EUR",
+    "timestamp": "2024-07-02T09:00:00Z",
+    "status": "UNKNOWN",
+    "source": "FormatA",
+    "is_valid": false,
+    "validation_errors": [
+      "Estado desconocido: 'procesando'"
+    ]
+  },
+  {
+    "id": "INV-006",
+    "amount": 0.0,
+    "currency": "USD",
+    "timestamp": "2024-07-03T11:00:00Z",
+    "status": "PENDING",
+    "source": "FormatA",
+    "is_valid": false,
+    "validation_errors": [
+      "Monto inválido: 0.0 (debe ser > 0)"
+    ]
+  },
+  {
+    "id": "INV-007",
+    "amount": 100.0,
+    "currency": "",
+    "timestamp": "2024-07-04T12:00:00Z",
+    "status": "SUCCESS",
+    "source": "FormatA",
+    "is_valid": false,
+    "validation_errors": [
+      "Moneda vacía"
+    ]
+  },
+  {
+    "id": "INV-008",
+    "amount": 0.0,
+    "currency": "USD",
+    "timestamp": "2024-07-05T08:00:00Z",
+    "status": "SUCCESS",
+    "source": "FormatA",
+    "is_valid": false,
+    "validation_errors": [
+      "Monto inválido: 0.0 (debe ser > 0)"
+    ]
+  }
+]

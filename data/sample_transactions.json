@@ -1,0 +1,164 @@
+[
+  {
+    "transaction_id": "TXN-001",
+    "amount": 1500.00,
+    "currency": "USD",
+    "date": "2024-01-15T10:30:00Z",
+    "status": "completed"
+  },
+  {
+    "transaction_id": "TXN-002",
+    "amount": "2.500,75",
+    "currency": "eur",
+    "date": "2024-01-16 08:45:00",
+    "status": "success"
+  },
+  {
+    "transaction_id": "TXN-003",
+    "amount": 350000,
+    "currency": "usd",
+    "date": "15/01/2024 14:00",
+    "status": "failed"
+  },
+  {
+    "transaction_id": "TXN-004",
+    "amount": "$1,234.56",
+    "currency": "MXN",
+    "date": "2024-02-01T09:00:00Z",
+    "status": "OK"
+  },
+  {
+    "transaction_id": "TXN-005",
+    "amount": 99.99,
+    "currency": "GBP",
+    "date": "2024-02-05T15:20:00Z",
+    "status": "pending"
+  },
+  {
+    "tx_id": "TXB-001",
+    "tx_amount": 500.00,
+    "tx_currency": "cop",
+    "tx_date": "2024-03-10 12:00:00",
+    "tx_status": "success"
+  },
+  {
+    "tx_id": "TXB-002",
+    "tx_amount": 75000,
+    "tx_currency": "BRL",
+    "tx_date": "10/03/2024 08:30",
+    "tx_status": "error"
+  },
+  {
+    "tx_id": "TXB-003",
+    "tx_amount": 200.00,
+    "tx_currency": "ARS",
+    "tx_date": "2024-03-11T11:00:00Z",
+    "tx_status": "pending"
+  },
+  {
+    "ref": "RFC-001",
+    "value": 950.50,
+    "cur": "USD",
+    "created_at": "2024-04-01 09:15:00",
+    "state": "completed"
+  },
+  {
+    "ref": "RFC-002",
+    "value": "1.800,00",
+    "cur": "eur",
+    "created_at": "2024-04-02 10:30:00",
+    "state": "OK"
+  },
+  {
+    "id": "TXD-001",
+    "amount_cents": 299900,
+    "currency_code": "USD",
+    "created_at": "2024-05-01T14:00:00Z",
+    "status": "completed"
+  },
+  {
+    "id": "TXD-002",
+    "amount_cents": 50000,
+    "currency_code": "MXN",
+    "created_at": "2024-05-02T16:30:00Z",
+    "status": "failed"
+  },
+  {
+    "uid": "TXE-001",
+    "total": 120.00,
+    "money_type": "USD",
+    "datetime": "2024-06-01 08:00:00",
+    "transaction_status": "success"
+  },
+  {
+    "uid": "TXE-002",
+    "total": 875.25,
+    "money_type": "GBP",
+    "datetime": "2024-06-15T10:45:00Z",
+    "transaction_status": "completed"
+  },
+  {
+    "_comment": "=== CASOS INVÁLIDOS ===",
+    "transaction_id": "",
+    "amount": 500.00,
+    "currency": "USD",
+    "date": "2024-07-01T10:00:00Z",
+    "status": "completed"
+  },
+  {
+    "_comment": "monto inválido",
+    "transaction_id": "INV-002",
+    "amount": -50.00,
+    "currency": "USD",
+    "date": "2024-07-01T10:00:00Z",
+    "status": "completed"
+  },
+  {
+    "_comment": "moneda desconocida",
+    "transaction_id": "INV-003",
+    "amount": 200.00,
+    "currency": "XYZ",
+    "date": "2024-07-01T10:00:00Z",
+    "status": "completed"
+  },
+  {
+    "_comment": "fecha inválida",
+    "transaction_id": "INV-004",
+    "amount": 300.00,
+    "currency": "USD",
+    "date": "99/99/9999 25:99",
+    "status": "completed"
+  },
+  {
+    "_comment": "estado desconocido",
+    "transaction_id": "INV-005",
+    "amount": 450.00,
+    "currency": "EUR",
+    "date": "2024-07-02T09:00:00Z",
+    "status": "procesando"
+  },
+  {
+    "_comment": "monto cero",
+    "transaction_id": "INV-006",
+    "amount": 0,
+    "currency": "USD",
+    "date": "2024-07-03T11:00:00Z",
+    "status": "pending"
+  },
+  {
+    "_comment": "moneda vacía",
+    "transaction_id": "INV-007",
+    "amount": 100.00,
+    "currency": "",
+    "date": "2024-07-04T12:00:00Z",
+    "status": "success"
+  },
+  {
+    "_comment": "monto texto no parseble",
+    "transaction_id": "INV-008",
+    "amount": "N/A",
+    "currency": "USD",
+    "date": "2024-07-05T08:00:00Z",
+    "status": "success"
+  }
+]
