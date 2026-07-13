@@ -1,83 +1,146 @@
-# Nota Técnica — Normalizador de Transacciones Multifuente
+# Nota Técnica — Refactorización a Sistema Agéntico
 
-**Autor:** Estudiante Kodigo  
-**Fecha:** Julio 2026  
-**Proyecto:** Tarea IA v2 — Normalización y Exploración de Transacciones
-
----
-
-## 1. Decisiones del modelo
-
-Se utilizó una **`dataclass`** de Python para representar la transacción normalizada (`Transaction`). Esta elección obedece a tres razones:
-
-1. **Claridad**: los campos son inmediatamente visibles en la definición de la clase, sin getters ni setters.
-2. **Serialización sencilla**: el método `to_dict()` convierte la instancia al modelo JSON en una sola llamada.
-3. **Transporte de metadatos de validación**: al incluir `is_valid` y `validation_errors` en la misma dataclass, el objeto viaja "auto-anotado" por toda la cadena de procesamiento sin necesidad de estructuras paralelas.
-
-El estado se modeló con un **`Enum` (`TransactionStatus`)** en lugar de strings, eliminando la posibilidad de comparaciones con strings mágicos y haciendo el código más seguro en tiempo de ejecución.
+**Proyecto:** Normalizador de Transacciones Multifuente  
+**Versión:** 2.0.0  
+**Fecha:** 2026-07
 
 ---
 
-## 2. Reglas de normalización
+## 1. Motivación de la refactorización
 
-### Montos
-La mayor fuente de heterogeneidad entre sistemas financieros es el formato del monto. Se implementaron cuatro casos:
+La versión original (v1) funcionaba correctamente pero presentaba
+limitaciones arquitectónicas que dificultaban su mantenimiento y extensión:
 
-| Tipo | Ejemplo | Lógica |
-|------|---------|--------|
-| Float/int directo | `99.99` | Conversión directa |
-| Entero en centavos | `350000` | Si el entero supera el umbral (10 000, configurable en `rules.json`), se divide entre 100 |
-| Texto con símbolo | `"$1,234.56"` | Se eliminan caracteres no numéricos, luego se parsea |
-| Formato europeo | `"2.500,75"` | El punto es separador de miles y la coma es decimal; se invierten para obtener el float |
+| Problema (v1)                        | Impacto                                         |
+|--------------------------------------|-------------------------------------------------|
+| CLI llamaba servicios directamente   | Acoplamiento alto; cambiar un servicio rompía la CLI |
+| Lógica de decisión dispersa en CLI   | Difícil agregar nuevas funciones sin tocar `cli.py` |
+| Sin separación de responsabilidades  | Cada función de menú hacía parse + normalize + validate |
+| Sin coordinador central              | No había punto único de control del flujo       |
 
-### Moneda
-Normalización trivial pero importante: `.strip().upper()`. Esto convierte `"eur "` → `"EUR"`.
-
-### Estados
-Se definió una tabla de mapeo explícita en `TransactionStatus.from_raw()`. El estado `UNKNOWN` actúa como centinela: cualquier estado que llegue y no esté en la tabla quedará marcado como `UNKNOWN` y el validador lo rechazará.
-
-### Fechas
-Se prueban secuencialmente todos los formatos listados en `config/rules.json`. Si ninguno funciona, el string original se devuelve sin modificar, para que el validador detecte la fecha inválida y anote el error específico. Esto evita lanzar excepciones silenciosas.
+La refactorización buscó resolver estos problemas adoptando el patrón
+**Sistema Agéntico con Skills**, donde un agente coordina capacidades
+reutilizables e intercambiables.
 
 ---
 
-## 3. Criterios de validación
+## 2. Decisiones de diseño
 
-Se validaron cinco campos de forma independiente:
+### 2.1 Patrón Agente + Router + Skills
 
-| Campo | Criterio de invalidación |
-|-------|--------------------------|
-| `id` | Vacío o string de solo espacios |
-| `amount` | ≤ 0 o valor nulo |
-| `currency` | Vacía o no presente en la lista de `rules.json` |
-| `timestamp` | No coincide con el patrón ISO-8601 mínimo |
-| `status` | Quedó como `UNKNOWN` tras el mapeo |
+Se adoptó el patrón donde:
 
-Cada validación agrega un mensaje descriptivo a `validation_errors`, permitiendo diagnosticar exactamente qué falló sin releer el registro original.
+- **`TransactionAgent`** actúa como orquestador único: recibe solicitudes,
+  delega al router y ejecuta la skill seleccionada.
+- **`SkillRouter`** encapsula las reglas de selección de skill. Al estar
+  separado del agente, permite cambiar la estrategia de enrutamiento
+  (ej. pasar de keywords a un LLM) sin modificar el agente.
+- **Cada `Skill`** encapsula exactamente una responsabilidad, lo que
+  permite probarla, reutilizarla y modificarla de forma independiente.
+
+### 2.2 AgentContext como memoria de trabajo
+
+En lugar de pasar datos entre funciones como parámetros, se introdujo
+`AgentContext`: un objeto de sesión mutable que almacena transacciones,
+métricas y el historial de acciones.
+
+**Beneficio:** Las skills pueden leer y escribir en el contexto sin
+necesidad de conocerse entre sí. El agente mantiene coherencia de sesión.
+
+### 2.3 Skills como herederas de BaseSkill
+
+Todas las skills implementan la interfaz `BaseSkill.execute(request)`.
+Esto garantiza:
+
+- **Polimorfismo:** El agente puede ejecutar cualquier skill sin conocer
+  su implementación.
+- **Testabilidad:** Cada skill puede probarse de forma aislada.
+- **Extensibilidad:** Agregar una nueva skill solo requiere crear la clase
+  y registrarla en el agente.
+
+### 2.4 Configuración centralizada
+
+`config/config.py` centraliza:
+- Keywords del router.
+- Rutas de datos.
+- Parámetros de logging.
+- Referencia a `rules.json`.
+
+**Beneficio:** Los parámetros del sistema se modifican en un único lugar.
+
+### 2.5 Los servicios NO se modificaron
+
+`services/` (parser, normalizer, validator, metrics) se conservaron
+íntegramente. Las skills los consumen como dependencias.
+
+**Beneficio:** Cero riesgo de regresión en la lógica de negocio existente.
+Las pruebas de regresión originales (test_normalizer, test_validator,
+test_metrics) siguen pasando sin cambios.
 
 ---
 
-## 4. Cómo se utilizó la IA
+## 3. Beneficios obtenidos
 
-La IA (Antigravity / Claude) fue utilizada para:
-
-- **Generación del esqueleto inicial**: estructura de archivos, interfaces de funciones con type hints y docstrings.
-- **Implementación de los extractores por formato** (`parser.py`): se generaron los cinco extractores y el genérico de fallback de forma automatizada.
-- **Generación de los tests unitarios**: los tres archivos de tests (`test_normalizer.py`, `test_validator.py`, `test_metrics.py`) fueron generados por la IA con cobertura de casos límite.
-- **Diseño de los datos de prueba**: los 22 registros en `sample_transactions.json` cubren todos los formatos y casos de invalidación requeridos.
+| Aspecto               | Antes (v1)                    | Después (v2)                     |
+|-----------------------|-------------------------------|----------------------------------|
+| Acoplamiento          | CLI → services (directo)      | CLI → Agent → Skill → services   |
+| Extensibilidad        | Modificar `cli.py` completo   | Agregar clase Skill + keyword    |
+| Testabilidad          | Solo servicios probados       | Router + Skills + Agent probados |
+| Responsabilidades     | Mezcladas en `cli.py`         | Una por skill                    |
+| Configuración         | Hardcoded en múltiples archivos| Centralizada en `config.py`     |
+| Documentación técnica | README básico                 | SKILL.md por skill + README v2   |
 
 ---
 
-## 5. Sugerencias modificadas manualmente
+## 4. Limitaciones conocidas
 
-Las siguientes decisiones se tomaron de forma consciente sobre las sugerencias de la IA:
+- **Router rule-based:** La selección de skill usa keywords fijas. Para
+  solicitudes ambiguas o con vocabulario no previsto, el router devuelve
+  `None` y el agente informa al usuario. En el futuro puede sustituirse
+  por un LLM clasificador.
 
-1. **Umbral de centavos configurable**: la IA propuso un valor hardcodeado de `10_000`. Se movió a `config/rules.json` (`"cents_threshold": 10000`) para facilitar ajustes sin tocar el código.
+- **Contexto en memoria:** El `AgentContext` no persiste entre ejecuciones
+  del programa. Si el usuario reinicia, debe volver a cargar el archivo.
 
-2. **`UNKNOWN` como estado intermedio**: la IA inicialmente proponía lanzar un `ValueError` si el estado no se reconocía. Se cambió a devolver `UNKNOWN` y dejar que el validador lo rechace con un mensaje descriptivo, lo que mejora la trazabilidad.
+- **Sin paralelización:** Las skills se ejecutan secuencialmente. Para
+  conjuntos muy grandes de transacciones, podría beneficiarse de
+  procesamiento paralelo en `NormalizeSkill`.
 
-3. **Modo batch (`--proceso`)**: se añadió esta opción en `main.py` para poder procesar y exportar sin abrir la CLI, útil para pruebas automatizadas y pipelines CI.
+---
 
-4. **`colorama` como dependencia opcional**: se envolvió la importación en `try/except` para que la CLI funcione también en entornos donde `colorama` no esté instalado, sin fallar.
+## 5. Plan de extensión futura
 
-5. **Campo `raw` en `Transaction`**: la IA no lo incluyó inicialmente. Se añadió para mantener trazabilidad del registro original, especialmente útil para depurar los errores de validación.
+1. **Integrar un LLM como router:** Reemplazar `SkillRouter` por una
+   llamada a GPT-4 o Gemini para clasificar la intención.
+2. **Persistencia de contexto:** Serializar `AgentContext` a JSON para
+   retomar sesiones.
+3. **Nuevas skills:** `TranslateSkill` (traducción de campos), `AuditSkill`
+   (auditoría de cambios), `FilterSkill` (filtros complejos).
+4. **API REST:** Exponer el agente como servicio HTTP con FastAPI.
+
+---
+
+## 6. Uso responsable de inteligencia artificial
+
+Durante el desarrollo de esta refactorización se utilizaron las siguientes
+herramientas de IA:
+
+| Herramienta          | Uso                                                  |
+|----------------------|------------------------------------------------------|
+| Claude / Antigravity | Generación de propuestas de arquitectura, código base de skills y pruebas |
+| GitHub Copilot       | Autocompletado de docstrings y fragmentos de código  |
+
+**Proceso de validación aplicado:**
+
+1. Todas las propuestas de código generadas por IA fueron **revisadas
+   manualmente** antes de aceptarlas.
+2. Se **ejecutaron las pruebas existentes** (test_normalizer, test_validator,
+   test_metrics) para verificar que no hubo regresiones.
+3. Se ejecutó el **pipeline batch completo** (`python main.py --proceso`)
+   para validar el flujo de extremo a extremo.
+4. Los **comentarios técnicos** y la documentación fueron revisados para
+   asegurar que reflejan las decisiones reales del proyecto.
+
+La IA fue utilizada como **asistente de implementación**, no como autor.
+Todas las decisiones de diseño, arquitectura y validación fueron
+responsabilidad del estudiante.

@@ -1,28 +1,28 @@
 """
 ui/cli.py
 ---------
-Interfaz de línea de comandos (CLI) interactiva para explorar y gestionar
-el conjunto de transacciones normalizadas.
+Interfaz de línea de comandos (CLI) interactiva para el sistema agéntico
+de normalización de transacciones.
 
 Menú disponible:
-  1. Cargar archivo
-  2. Ver todas las transacciones
-  3. Filtrar por estado
-  4. Filtrar por moneda
-  5. Ver métricas
-  6. Ver inválidas
-  7. Exportar normalizadas
-  8. Salir
+  1. Cargar archivo          → NormalizeSkill + ValidateSkill
+  2. Ver todas               → muestra todas las transacciones del contexto
+  3. Filtrar por estado      → SearchSkill
+  4. Filtrar por moneda      → SearchSkill
+  5. Ver métricas            → MetricsSkill
+  6. Ver inválidas           → muestra inválidas del contexto
+  7. Exportar normalizadas   → ExportSkill
+  8. Generar reporte         → ReportSkill
+  9. Salir
 
-Decisión de diseño:
-  Se usa colorama para dar color al terminal de forma portable
-  (Windows/Linux/macOS). Todos los inputs se validan con try/except
-  para evitar errores en tiempo de ejecución por entradas inesperadas.
+Cambio arquitectónico (v2):
+  La CLI ya NO llama directamente a los servicios.
+  Toda la lógica pasa por el TransactionAgent, que selecciona
+  y ejecuta la skill adecuada.
 """
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 from pathlib import Path
@@ -42,11 +42,8 @@ except ImportError:
     Fore = _FakeStyle()          # type: ignore[assignment]
     Style = _FakeStyle()         # type: ignore[assignment]
 
+from agent.agent import TransactionAgent
 from models.transaction import Transaction, TransactionStatus
-from services.metrics import compute_metrics, format_metrics
-from services.normalizer import normalize
-from services.parser import parse_record
-from services.validator import split_transactions, validate
 
 
 # ---------------------------------------------------------------------------
@@ -62,6 +59,7 @@ def _header() -> None:
     """Imprime el encabezado de la aplicación."""
     print(Fore.CYAN + Style.BRIGHT + "=" * 60)
     print(Fore.CYAN + Style.BRIGHT + "   💳  NORMALIZADOR DE TRANSACCIONES MULTIFUENTE  💳")
+    print(Fore.CYAN + Style.BRIGHT + "   🤖  Powered by TransactionAgent v2.0")
     print(Fore.CYAN + Style.BRIGHT + "=" * 60 + Style.RESET_ALL)
 
 
@@ -97,7 +95,9 @@ def _print_transaction(tx: Transaction, index: Optional[int] = None) -> None:
     )
 
 
-def _print_transactions(transactions: List[Transaction], title: str = "TRANSACCIONES") -> None:
+def _print_transactions(
+    transactions: List[Transaction], title: str = "TRANSACCIONES"
+) -> None:
     """Imprime una lista de transacciones con encabezado."""
     if not transactions:
         print(Fore.YELLOW + "  (Sin resultados para mostrar)" + Style.RESET_ALL)
@@ -114,114 +114,69 @@ def _print_transactions(transactions: List[Transaction], title: str = "TRANSACCI
 
 
 # ---------------------------------------------------------------------------
-# Acciones del menú
+# Acciones del menú — ahora delegan al agente
 # ---------------------------------------------------------------------------
 
-def _action_load(state: dict) -> None:
-    """Opción 1: Cargar archivo JSON de transacciones."""
+def _action_load(agent: TransactionAgent) -> None:
+    """Opción 1: Cargar archivo → NormalizeSkill + ValidateSkill."""
     print(Fore.WHITE + Style.BRIGHT + "\n  CARGAR ARCHIVO" + Style.RESET_ALL)
     default = Path(__file__).parent.parent / "data" / "sample_transactions.json"
     print(f"  Ruta por defecto: {Fore.CYAN}{default}{Style.RESET_ALL}")
-    raw_path = input(f"  Ingresa la ruta del archivo JSON [ENTER para default]: ").strip()
+    raw_path = input("  Ingresa la ruta del archivo JSON [ENTER para default]: ").strip()
 
     filepath = Path(raw_path) if raw_path else default
 
-    if not filepath.exists():
-        print(Fore.RED + f"  ✘ Archivo no encontrado: {filepath}" + Style.RESET_ALL)
-        return
+    # Delegar al agente: normalización
+    print(Fore.WHITE + "\n  [1/2] Normalizando..." + Style.RESET_ALL)
+    result_norm = agent.run(f"normaliza {filepath}", filepath=filepath)
+    print(Fore.GREEN + f"\n  {result_norm}" + Style.RESET_ALL)
 
-    try:
-        with open(filepath, encoding="utf-8") as f:
-            records: list = json.load(f)
-    except (json.JSONDecodeError, IOError) as e:
-        print(Fore.RED + f"  ✘ Error al leer el archivo: {e}" + Style.RESET_ALL)
-        return
-
-    if not isinstance(records, list):
-        print(Fore.RED + "  ✘ El archivo debe contener un array JSON en el nivel raíz." + Style.RESET_ALL)
-        return
-
-    # Procesar registros
-    transactions: List[Transaction] = []
-    skipped = 0
-    for record in records:
-        if not isinstance(record, dict):
-            skipped += 1
-            continue
-        try:
-            raw_fields = parse_record(record)
-            tx = normalize(raw_fields, record)
-            tx = validate(tx)
-            transactions.append(tx)
-        except Exception as e:
-            print(Fore.RED + f"  ⚠ Error procesando registro: {e}" + Style.RESET_ALL)
-            skipped += 1
-
-    state["transactions"] = transactions
-    valid, invalid = split_transactions(transactions)
-    state["valid"] = valid
-    state["invalid"] = invalid
-    state["metrics"] = compute_metrics(transactions)
-
-    print(Fore.GREEN + f"\n  ✔ Archivo cargado: {filepath.name}" + Style.RESET_ALL)
-    print(f"  Total procesadas : {len(transactions)}")
-    print(f"  Válidas          : {Fore.GREEN}{len(valid)}{Style.RESET_ALL}")
-    print(f"  Inválidas        : {Fore.RED}{len(invalid)}{Style.RESET_ALL}")
-    if skipped:
-        print(Fore.YELLOW + f"  Omitidas         : {skipped}" + Style.RESET_ALL)
+    # Delegar al agente: validación
+    print(Fore.WHITE + "\n  [2/2] Validando..." + Style.RESET_ALL)
+    result_val = agent.run("valida las transacciones")
+    print(Fore.GREEN + f"  {result_val}" + Style.RESET_ALL)
 
 
-def _action_view_all(state: dict) -> None:
-    """Opción 2: Ver todas las transacciones normalizadas."""
-    _print_transactions(state.get("transactions", []), "TODAS LAS TRANSACCIONES")
+def _action_view_all(agent: TransactionAgent) -> None:
+    """Opción 2: Ver todas las transacciones del contexto."""
+    _print_transactions(agent.context.transactions, "TODAS LAS TRANSACCIONES")
 
 
-def _action_filter_status(state: dict) -> None:
-    """Opción 3: Filtrar por estado."""
+def _action_filter_status(agent: TransactionAgent) -> None:
+    """Opción 3: Filtrar por estado → SearchSkill."""
     print(Fore.WHITE + Style.BRIGHT + "\n  FILTRAR POR ESTADO" + Style.RESET_ALL)
-    print(f"  Opciones: {Fore.GREEN}SUCCESS{Style.RESET_ALL} | {Fore.RED}FAILED{Style.RESET_ALL} | {Fore.YELLOW}PENDING{Style.RESET_ALL}")
+    print(
+        f"  Opciones: {Fore.GREEN}SUCCESS{Style.RESET_ALL} | "
+        f"{Fore.RED}FAILED{Style.RESET_ALL} | "
+        f"{Fore.YELLOW}PENDING{Style.RESET_ALL}"
+    )
     raw = input("  Ingresa el estado: ").strip().upper()
 
-    try:
-        status = TransactionStatus(raw)
-    except ValueError:
-        print(Fore.RED + f"  ✘ Estado inválido: '{raw}'" + Style.RESET_ALL)
-        return
-
-    filtered = [
-        tx for tx in state.get("transactions", [])
-        if tx.status == status and tx.is_valid
-    ]
-    _print_transactions(filtered, f"TRANSACCIONES — ESTADO: {status.value}")
+    result = agent.run(f"buscar estado {raw.lower()}")
+    print(Fore.CYAN + f"\n{result}" + Style.RESET_ALL)
 
 
-def _action_filter_currency(state: dict) -> None:
-    """Opción 4: Filtrar por moneda."""
+def _action_filter_currency(agent: TransactionAgent) -> None:
+    """Opción 4: Filtrar por moneda → SearchSkill."""
     print(Fore.WHITE + Style.BRIGHT + "\n  FILTRAR POR MONEDA" + Style.RESET_ALL)
     currency = input("  Ingresa el código de moneda (ej. USD, EUR): ").strip().upper()
     if not currency:
         print(Fore.RED + "  ✘ Moneda vacía." + Style.RESET_ALL)
         return
 
-    filtered = [
-        tx for tx in state.get("transactions", [])
-        if tx.currency == currency and tx.is_valid
-    ]
-    _print_transactions(filtered, f"TRANSACCIONES — MONEDA: {currency}")
+    result = agent.run(f"buscar {currency}")
+    print(Fore.CYAN + f"\n{result}" + Style.RESET_ALL)
 
 
-def _action_metrics(state: dict) -> None:
-    """Opción 5: Ver métricas del procesamiento."""
-    metrics = state.get("metrics")
-    if not metrics:
-        print(Fore.YELLOW + "\n  No hay datos cargados aún." + Style.RESET_ALL)
-        return
-    print(Fore.CYAN + format_metrics(metrics) + Style.RESET_ALL)
+def _action_metrics(agent: TransactionAgent) -> None:
+    """Opción 5: Ver métricas → MetricsSkill."""
+    result = agent.run("métricas del procesamiento")
+    print(Fore.CYAN + f"\n{result}" + Style.RESET_ALL)
 
 
-def _action_view_invalid(state: dict) -> None:
+def _action_view_invalid(agent: TransactionAgent) -> None:
     """Opción 6: Ver transacciones inválidas con sus errores."""
-    invalid = state.get("invalid", [])
+    invalid = agent.context.invalid
     if not invalid:
         print(Fore.YELLOW + "\n  No hay transacciones inválidas." + Style.RESET_ALL)
         return
@@ -241,31 +196,16 @@ def _action_view_invalid(state: dict) -> None:
     print(Fore.WHITE + Style.DIM + f"  {'─'*56}" + Style.RESET_ALL)
 
 
-def _action_export(state: dict) -> None:
-    """Opción 7: Exportar transacciones normalizadas a valid.json e invalid.json."""
-    valid = state.get("valid", [])
-    invalid = state.get("invalid", [])
+def _action_export(agent: TransactionAgent) -> None:
+    """Opción 7: Exportar → ExportSkill."""
+    result = agent.run("exporta los resultados")
+    print(Fore.GREEN + f"\n  {result}" + Style.RESET_ALL)
 
-    if not state.get("transactions"):
-        print(Fore.YELLOW + "\n  No hay datos cargados." + Style.RESET_ALL)
-        return
 
-    output_dir = Path(__file__).parent.parent / "data"
-    output_dir.mkdir(exist_ok=True)
-
-    valid_path = output_dir / "valid.json"
-    invalid_path = output_dir / "invalid.json"
-
-    with open(valid_path, "w", encoding="utf-8") as f:
-        json.dump([tx.to_dict() for tx in valid], f, ensure_ascii=False, indent=2)
-
-    with open(invalid_path, "w", encoding="utf-8") as f:
-        json.dump([tx.to_dict_full() for tx in invalid], f, ensure_ascii=False, indent=2)
-
-    print(Fore.GREEN + f"\n  ✔ Exportado válidas   → {valid_path}" + Style.RESET_ALL)
-    print(Fore.GREEN + f"  ✔ Exportado inválidas → {invalid_path}" + Style.RESET_ALL)
-    print(f"  Total válidas  : {len(valid)}")
-    print(f"  Total inválidas: {len(invalid)}")
+def _action_report(agent: TransactionAgent) -> None:
+    """Opción 8: Generar reporte Markdown → ReportSkill."""
+    result = agent.run("genera reporte markdown")
+    print(Fore.GREEN + f"\n  {result}" + Style.RESET_ALL)
 
 
 # ---------------------------------------------------------------------------
@@ -280,13 +220,15 @@ _MENU_OPTIONS = {
     "5": ("Ver métricas",            _action_metrics),
     "6": ("Ver inválidas",           _action_view_invalid),
     "7": ("Exportar normalizadas",   _action_export),
-    "8": ("Salir",                   None),
+    "8": ("Generar reporte",         _action_report),
+    "9": ("Salir",                   None),
 }
 
 
-def _print_menu(state: dict) -> None:
-    """Imprime el menú principal."""
-    loaded_count = len(state.get("transactions", []))
+def _print_menu(agent: TransactionAgent) -> None:
+    """Imprime el menú principal con estado del agente."""
+    ctx = agent.context
+    loaded_count = len(ctx.transactions)
     loaded_str = (
         f"{Fore.GREEN}{loaded_count} transacciones cargadas{Style.RESET_ALL}"
         if loaded_count > 0
@@ -299,8 +241,8 @@ def _print_menu(state: dict) -> None:
     print("  └─────────────────────────────────────┘" + Style.RESET_ALL)
 
     for key, (label, _) in _MENU_OPTIONS.items():
-        icon = "🚪" if key == "8" else f" {key}"
-        color = Fore.RED if key == "8" else Fore.WHITE
+        icon = "🚪" if key == "9" else f" {key}"
+        color = Fore.RED if key == "9" else Fore.WHITE
         print(f"  {color}  [{icon}] {label}{Style.RESET_ALL}")
 
     print()
@@ -310,25 +252,22 @@ def run() -> None:
     """
     Inicia el bucle principal de la CLI interactiva.
 
-    Mantiene el estado de la sesión (transacciones, métricas) en un
-    diccionario que se pasa a cada acción.
+    En esta versión (v2), la CLI instancia un TransactionAgent
+    único que mantiene el estado de sesión (AgentContext) y
+    delega cada acción del menú a la skill correspondiente.
     """
-    state: dict = {
-        "transactions": [],
-        "valid": [],
-        "invalid": [],
-        "metrics": None,
-    }
+    # Un agente por sesión; el contexto persiste entre opciones del menú
+    agent = TransactionAgent()
 
     while True:
         _clear()
         _header()
-        _print_menu(state)
+        _print_menu(agent)
 
         choice = input(f"  {Fore.CYAN}Elige una opción: {Style.RESET_ALL}").strip()
 
         if choice not in _MENU_OPTIONS:
-            print(Fore.RED + "  ✘ Opción inválida. Ingresa un número del 1 al 8." + Style.RESET_ALL)
+            print(Fore.RED + "  ✘ Opción inválida. Ingresa un número del 1 al 9." + Style.RESET_ALL)
             _pause()
             continue
 
@@ -339,5 +278,5 @@ def run() -> None:
             sys.exit(0)
 
         print(Fore.WHITE + Style.BRIGHT + f"\n  ── {label.upper()} ──" + Style.RESET_ALL)
-        action(state)
+        action(agent)
         _pause()

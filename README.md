@@ -1,155 +1,245 @@
-# 💳 Normalizador de Transacciones Multifuente
+# Normalizador de Transacciones Multifuente — v2 (Sistema Agéntico)
 
-Aplicación Python con CLI interactiva que lee transacciones desde JSON, detecta el formato de origen, normaliza al modelo estándar, valida los registros, calcula métricas y permite explorar la información.
+Sistema agéntico modular para normalizar, validar, analizar y exportar
+transacciones financieras provenientes de múltiples fuentes con formatos
+heterogéneos.
 
 ---
 
-## Estructura del proyecto
+## Arquitectura
+
+```
+main.py
+    │
+    ▼
+TransactionAgent          ← Orquestador central
+    │
+    ├── SkillRouter        ← Selección automática por palabras clave
+    │
+    ├── NormalizeSkill     ← Detectar formato + normalizar
+    ├── ValidateSkill      ← Validar reglas de negocio
+    ├── MetricsSkill       ← Calcular estadísticas
+    ├── SearchSkill        ← Búsqueda por ID / moneda / estado
+    ├── ExportSkill        ← Generar valid.json + invalid.json
+    └── ReportSkill        ← Generar reporte Markdown
+           │
+           ▼
+        services/          ← Lógica de negocio (sin cambios)
+        ├── parser.py
+        ├── normalizer.py
+        ├── validator.py
+        └── metrics.py
+```
+
+### Estructura de directorios
 
 ```
 tarea-ia-v2/
-├── main.py                        # Punto de entrada
-├── requirements.txt               # Dependencias
-├── README.md                      # Este archivo
-├── NOTA_TECNICA.md                # Nota técnica de una página
+├── agent/
+│   ├── agent.py          ← TransactionAgent (orquestador)
+│   ├── router.py         ← SkillRouter (selector de skills)
+│   ├── context.py        ← AgentContext (estado de sesión)
+│   └── prompts.py        ← Plantillas de mensajes
+├── skills/
+│   ├── base.py           ← Clase abstracta BaseSkill
+│   ├── normalize/        ← skill.py + SKILL.md
+│   ├── validate/         ← skill.py + SKILL.md
+│   ├── metrics/          ← skill.py + SKILL.md
+│   ├── search/           ← skill.py + SKILL.md
+│   ├── export/           ← skill.py + SKILL.md
+│   └── report/           ← skill.py + SKILL.md
+├── services/             ← Lógica de negocio (sin cambios)
+├── models/               ← Transaction, TransactionStatus
 ├── config/
-│   └── rules.json                 # Estados, monedas, formatos de fecha
-├── data/
-│   ├── sample_transactions.json   # Datos de prueba (22 registros)
-│   ├── valid.json                 # Generado al exportar
-│   └── invalid.json               # Generado al exportar
-├── models/
-│   └── transaction.py             # Dataclass Transaction + Enum TransactionStatus
-├── services/
-│   ├── parser.py                  # Detección de formato y extracción de campos
-│   ├── normalizer.py              # Conversión al modelo normalizado
-│   ├── validator.py               # Validación y separación
-│   └── metrics.py                 # Cálculo y presentación de métricas
+│   ├── config.py         ← Configuración centralizada
+│   └── rules.json        ← Reglas de negocio
 ├── ui/
-│   └── cli.py                     # CLI interactiva con menú de 8 opciones
-└── tests/
-    ├── test_normalizer.py
-    ├── test_validator.py
-    └── test_metrics.py
+│   └── cli.py            ← CLI interactiva (ahora usa el agente)
+├── data/                 ← Archivos de entrada/salida
+├── tests/                ← Pruebas unitarias e integración
+├── main.py               ← Punto de entrada
+├── README.md
+└── NOTA_TECNICA.md
 ```
 
 ---
 
-## Requisitos
-
-- Python 3.9 o superior
-- Dependencias:
+## Instalación
 
 ```bash
+# Clonar el repositorio
+git clone <url-del-repo>
+cd tarea-ia-v2
+
+# Instalar dependencias
 pip install -r requirements.txt
 ```
 
+### Dependencias
+
+```
+colorama   # Colores en la CLI
+pytest     # Ejecución de pruebas
+```
+
 ---
 
-## Cómo ejecutar
+## Ejecución
 
-### CLI interactiva
+### Modo interactivo (CLI)
 
 ```bash
 python main.py
 ```
 
-Abre el menú interactivo con 8 opciones.
+Inicia el menú interactivo con 9 opciones:
+
+| Opción | Acción            | Skill invocada   |
+|--------|-------------------|------------------|
+| 1      | Cargar archivo    | NormalizeSkill + ValidateSkill |
+| 2      | Ver todas         | (contexto)       |
+| 3      | Filtrar por estado| SearchSkill      |
+| 4      | Filtrar por moneda| SearchSkill      |
+| 5      | Ver métricas      | MetricsSkill     |
+| 6      | Ver inválidas     | (contexto)       |
+| 7      | Exportar          | ExportSkill      |
+| 8      | Generar reporte   | ReportSkill      |
+| 9      | Salir             | —                |
 
 ### Modo batch (sin CLI)
 
 ```bash
 python main.py --proceso
+# o
+python main.py --batch
 ```
 
-Procesa `data/sample_transactions.json`, genera `valid.json` e `invalid.json` e imprime las métricas.
+Ejecuta el pipeline completo vía agente:
+1. **NormalizeSkill** → lee `data/sample_transactions.json`
+2. **ValidateSkill** → separa válidas e inválidas
+3. **MetricsSkill** → calcula estadísticas
+4. **ExportSkill** → genera `data/valid.json` y `data/invalid.json`
 
 ---
 
-## Menú de la CLI
+## Skills
 
-| Opción | Descripción |
-|--------|-------------|
-| 1 | Cargar archivo JSON de transacciones |
-| 2 | Ver todas las transacciones normalizadas |
-| 3 | Filtrar por estado (SUCCESS / FAILED / PENDING) |
-| 4 | Filtrar por moneda (USD, EUR, …) |
-| 5 | Ver métricas del procesamiento |
-| 6 | Ver transacciones inválidas con sus errores |
-| 7 | Exportar normalizadas (valid.json / invalid.json) |
-| 8 | Salir |
+### NormalizeSkill
+Detecta el formato de cada registro (FormatA–E / Genérico) y lo convierte
+al modelo `Transaction`.
+
+**Solicitudes de ejemplo:**
+- `"normaliza data/sample_transactions.json"`
+- `"procesa el archivo"`
+
+### ValidateSkill
+Aplica reglas de negocio: ID no vacío, monto positivo, moneda soportada,
+fecha ISO-8601, estado reconocido.
+
+**Solicitudes de ejemplo:**
+- `"valida las transacciones"`
+- `"verificar errores"`
+
+### MetricsSkill
+Calcula totales, distribución por estado y montos por moneda.
+
+**Solicitudes de ejemplo:**
+- `"métricas del procesamiento"`
+- `"estadísticas"`
+
+### SearchSkill
+Búsqueda inteligente por ID, moneda o estado.
+
+**Solicitudes de ejemplo:**
+- `"buscar TXN-001"`
+- `"filtrar USD"`
+- `"buscar pendientes"`
+
+### ExportSkill
+Genera `data/valid.json` e `data/invalid.json`.
+
+**Solicitudes de ejemplo:**
+- `"exporta los resultados"`
+- `"guarda los archivos"`
+
+### ReportSkill
+Genera `data/report.md` con resumen ejecutivo en Markdown.
+
+**Solicitudes de ejemplo:**
+- `"genera reporte"`
+- `"informe markdown"`
 
 ---
 
-## Modelo normalizado
+## Flujo del agente
 
-```json
-{
-  "id": "TXN-001",
-  "amount": 1500.00,
-  "currency": "USD",
-  "timestamp": "2024-01-15T10:30:00Z",
-  "status": "SUCCESS",
-  "source": "FormatA"
-}
+```
+Solicitud en texto
+       │
+       ▼
+  SkillRouter
+  (compara keywords)
+       │
+       ▼
+  Skill seleccionada
+  (instanciada con AgentContext)
+       │
+       ▼
+  skill.execute(request)
+  (usa services/ internamente)
+       │
+       ▼
+  Respuesta + log en contexto
 ```
 
 ---
 
-## Reglas de normalización
+## Formatos de entrada soportados
 
-### Montos
-| Entrada | Resultado |
-|---------|-----------|
-| `350000` (int > 10 000) | `3500.00` (÷100, asume centavos) |
-| `"$1,234.56"` | `1234.56` |
-| `"2.500,75"` (europeo) | `2500.75` |
-| `99.99` | `99.99` |
-
-### Moneda
-- Siempre en MAYÚSCULAS: `eur` → `EUR`
-
-### Estados
-| Entrada | Normalizado |
-|---------|-------------|
-| completed, OK, success | SUCCESS |
-| failed, error | FAILED |
-| pending | PENDING |
-| cualquier otro | UNKNOWN → inválido |
-
-### Fechas soportadas
-- `%Y-%m-%dT%H:%M:%SZ` (ISO-8601)
-- `%Y-%m-%d %H:%M:%S`
-- `%d/%m/%Y %H:%M`
-- Y más formatos en `config/rules.json`
+| Formato  | Claves principales                                      |
+|----------|---------------------------------------------------------|
+| FormatA  | `transaction_id`, `amount`, `currency`, `date`, `status`|
+| FormatB  | `tx_id`, `tx_amount`, `tx_currency`, `tx_date`, `tx_status` |
+| FormatC  | `ref`, `value`, `cur`, `created_at`, `state`           |
+| FormatD  | `id`, `amount_cents`, `currency_code`, `created_at`, `status` |
+| FormatE  | `uid`, `total`, `money_type`, `datetime`, `transaction_status` |
+| Generic  | Detección por heurística de claves comunes             |
 
 ---
 
-## Formatos de entrada detectados
-
-| Formato | Claves características |
-|---------|----------------------|
-| FormatA | `transaction_id`, `amount`, `currency`, `date`, `status` |
-| FormatB | `tx_id`, `tx_amount`, `tx_currency`, `tx_date`, `tx_status` |
-| FormatC | `ref`, `value`, `cur`, `created_at`, `state` |
-| FormatD | `id`, `amount_cents`, `currency_code`, `created_at`, `status` |
-| FormatE | `uid`, `total`, `money_type`, `datetime`, `transaction_status` |
-
----
-
-## Ejecutar pruebas
+## Pruebas
 
 ```bash
-pytest tests/ -v
+# Ejecutar todas las pruebas
+python -m pytest tests/ -v
+
+# Solo pruebas del router
+python -m pytest tests/test_router.py -v
+
+# Solo pruebas de skills
+python -m pytest tests/test_skills.py -v
+
+# Pruebas de integración del agente
+python -m pytest tests/test_agent.py -v
+
+# Pruebas de regresión (código original)
+python -m pytest tests/test_normalizer.py tests/test_validator.py tests/test_metrics.py -v
 ```
+
+Cobertura mínima recomendada: **80%**.
 
 ---
 
-## Criterios de invalidación
+## Uso responsable de IA
 
-Una transacción se marca inválida si:
-- El ID está vacío o ausente.
-- El monto es ≤ 0 o no se pudo convertir.
-- La moneda está vacía o no está en la lista de soportadas.
-- La fecha no puede interpretarse como ISO-8601.
-- El estado no se pudo mapear (queda como UNKNOWN).
+Este proyecto fue desarrollado con asistencia de herramientas de IA
+(ChatGPT, GitHub Copilot, Claude / Antigravity) para:
+
+- Generación de propuestas de arquitectura.
+- Revisión de patrones de diseño.
+- Generación de plantillas de código.
+- Sugerencias de pruebas unitarias.
+
+**Todas las decisiones de diseño fueron revisadas, adaptadas y validadas
+manualmente.** Las pruebas se ejecutaron antes de aceptar cualquier
+sugerencia generada por IA.
